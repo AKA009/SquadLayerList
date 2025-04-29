@@ -15,6 +15,7 @@ EXPORT_VEHICLES = True
 EXPORT_ROLES = True
 EXPORT_INVENTORIES = True
 EXPORT_OBJECTIVES = True
+EXPORT_CHARACTERISTICS = True
 
 # ------------------------#
 #        ADVANCED        #
@@ -706,6 +707,37 @@ class LayerExporter(object):
 
             self.FactionSetupData[factionName]["roles"] = []
             self.FactionSetupData[factionName]["vehicles"] = []
+            self.FactionSetupData[factionName]["characteristics"] = []
+
+            if EXPORT_CHARACTERISTICS:
+                Characteristics = FactionSetup.get_editor_property("Characteristics")
+                for Characteristic in Characteristics:
+                    CharacteristicDataTable = Characteristic.get_editor_property("DataTable")
+                    CharacteristicRowName = Characteristic.get_editor_property("RowName")
+                    
+                    characteristics_columns_name = unreal.DataTableFunctionLibrary.get_data_table_column_as_string(
+                        CharacteristicDataTable, "DisplayText"
+                    )
+
+                    row_names = (
+                        unreal.DataTableFunctionLibrary.get_data_table_row_names(
+                            CharacteristicDataTable
+                        )
+                    )
+
+                    row_index = row_names.index(CharacteristicRowName)
+                    ColumnValues = characteristics_columns_name[row_index].split(",")
+                    CharacteristicDescription = re.search(r'"([^"]*)"', ColumnValues[len(ColumnValues) - 1])
+
+                    description = CharacteristicDescription.group(1) if CharacteristicDescription else ""
+
+                    self.FactionSetupData[factionName]["characteristics"].append(
+                        {
+                            "key": str(CharacteristicRowName),
+                            "description": description
+                        }
+                    )
+
 
             if EXPORT_VEHICLES:
                 Vehicles = FactionSetup.get_editor_property("Vehicles")
@@ -895,18 +927,20 @@ class LayerExporter(object):
                                             ]:
                                                 itemStr = item.__str__()
                                                 itemClassnameMatch = re.search(
-                                                    r"equipable_item: [^.]+\.([^, ]+)",
+                                                    r"equipable_item: ([^.]+\.([^, ]+))",
                                                     itemStr,
                                                 )
                                                 if itemClassnameMatch:
+                                                    ItemObj["objectPath"] = itemClassnameMatch.group(1)
                                                     ItemObj["className"] = (
-                                                        itemClassnameMatch.group(1)
+                                                        itemClassnameMatch.group(2)
                                                     )
                                                 ItemObj["isMelee"] = self.IsMeleeWeapon(
                                                     itemStr
                                                 )
                                             else:
                                                 if item.equipable_item is not None:
+                                                    ItemObj["objectPath"] = item.equipable_item.get_path_name()
                                                     ItemObj["className"] = (
                                                         unreal.Paths.get_extension(
                                                             item.equipable_item.get_path_name()
